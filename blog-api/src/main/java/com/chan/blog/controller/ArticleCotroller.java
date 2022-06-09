@@ -7,10 +7,7 @@ import com.chan.blog.vo.Result;
 import com.chan.blog.vo.params.PageParams;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -59,5 +56,11 @@ public class ArticleCotroller {
     @PostMapping("listArchives")
     public Result listArchives(){
         return  articleService.listArchives();
+    }
+
+    @PostMapping("view/{id}")
+    public Result findArticleById(@PathVariable("id") Long articleId){
+
+        return articleService.findArticleById(articleId);
     }
 }
