@@ -8,9 +8,8 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-//@JsonSerialize(using = ToStringSerializer.class)
 public class ArticleVo {
-
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     private String title;

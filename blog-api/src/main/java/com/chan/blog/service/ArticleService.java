@@ -2,6 +2,7 @@ package com.chan.blog.service;
 
 import com.chan.blog.vo.ArticleVo;
 import com.chan.blog.vo.Result;
+import com.chan.blog.vo.params.ArticleParam;
 import com.chan.blog.vo.params.PageParams;
 import org.springframework.stereotype.Service;
 
@@ -17,4 +18,6 @@ public interface ArticleService {
     Result listArchives();
 
     Result findArticleById(Long articleId);
+
+    Result publish(ArticleParam articleParam);
 }

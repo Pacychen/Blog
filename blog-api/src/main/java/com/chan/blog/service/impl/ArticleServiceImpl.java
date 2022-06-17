@@ -5,19 +5,22 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.chan.blog.dao.dos.Archives;
 import com.chan.blog.dao.mapper.ArticleBodyMapper;
 import com.chan.blog.dao.mapper.ArticleMapper;
+import com.chan.blog.dao.mapper.ArticleTagMapper;
 import com.chan.blog.dao.pojo.Article;
 import com.chan.blog.dao.pojo.ArticleBody;
+import com.chan.blog.dao.pojo.ArticleTag;
+import com.chan.blog.dao.pojo.SysUser;
 import com.chan.blog.service.*;
-import com.chan.blog.vo.ArticleBodyVo;
-import com.chan.blog.vo.ArticleVo;
-import com.chan.blog.vo.CategoryVo;
-import com.chan.blog.vo.Result;
+import com.chan.blog.utils.UserThreadLocal;
+import com.chan.blog.vo.*;
+import com.chan.blog.vo.params.ArticleParam;
 import com.chan.blog.vo.params.PageParams;
 import com.sun.org.apache.xpath.internal.operations.Bool;
 import org.joda.time.DateTime;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,12 +40,31 @@ public class ArticleServiceImpl implements ArticleService {
     @Autowired
     private CategoryService categoryService;
 
+    @Autowired
+    private ArticleTagMapper articleTagMapper;
+
     @Override
     public Result listArticle(PageParams pageParams) {
         Page<Article> page = new Page<>(pageParams.getPage(),pageParams.getPageSize());
         LambdaQueryWrapper<Article> queryWrapper = new LambdaQueryWrapper<>();
         // 是否置顶进行排序
         // order by create_date desc
+        if (pageParams.getCategoryId() != null){
+            queryWrapper.eq(Article::getCategoryId,pageParams.getCategoryId());
+        }
+        List<Long> articleIdList = new ArrayList<>();
+        if (pageParams.getTagId() != null){
+            LambdaQueryWrapper<ArticleTag> articleTagLambdaQueryWrapper = new LambdaQueryWrapper<>();
+            articleTagLambdaQueryWrapper.eq(ArticleTag::getTagId,pageParams.getTagId());
+            List<ArticleTag> articleTags = articleTagMapper.selectList(articleTagLambdaQueryWrapper);
+            for (ArticleTag articleTag : articleTags) {
+                articleIdList.add(articleTag.getArticleId());
+            }
+            if (articleIdList.size() > 0){
+                queryWrapper.in(Article::getId,articleIdList);
+            }
+
+        }
         queryWrapper.orderByDesc(Article::getWeight,Article::getCreateDate);
         Page<Article> articlePage = articleMapper.selectPage(page, queryWrapper);
         List<Article> records = articlePage.getRecords();
@@ -80,6 +102,52 @@ public class ArticleServiceImpl implements ArticleService {
         Article article = this.articleMapper.selectById(articleId);
         ArticleVo articleVo = copy(article,true,true,true,true);
         threadService.updateArticleViewCount(articleMapper,article);
+        return Result.success(articleVo);
+    }
+
+    @Override
+    @Transactional
+    public Result publish(ArticleParam articleParam) {
+        /**
+         * 1.发布文章 构建article对象
+         * 2.作者id 当前登录用户
+         * 3.标签 要将标签加入到关联列表
+         */
+        SysUser sysUser = UserThreadLocal.get();
+
+        Article article = new Article();
+        article.setAuthorId(sysUser.getId());
+        article.setCategoryId(articleParam.getCategory().getId());
+        article.setCreateDate(System.currentTimeMillis());
+        article.setCommentCounts(0);
+        article.setSummary(articleParam.getSummary());
+        article.setTitle(articleParam.getTitle());
+        article.setViewCounts(0);
+        article.setWeight(Article.Article_Common);
+        article.setBodyId(-1L);
+        this.articleMapper.insert(article);
+        // tags
+        List<TagVo> tags = articleParam.getTags();
+        if (tags != null){
+            Long articleId = article.getId();
+            for (TagVo tag : tags) {
+                ArticleTag articleTag = new ArticleTag();
+                articleTag.setTagId(tag.getId());
+                articleTag.setArticleId(articleId);
+                articleTagMapper.insert(articleTag);
+            }
+        }
+        //body
+        ArticleBody articleBody = new ArticleBody();
+        articleBody.setContent(articleParam.getBody().getContent());
+        articleBody.setContentHtml(articleParam.getBody().getContentHtml());
+        articleBody.setArticleId(article.getId());
+        articleBodyMapper.insert(articleBody);
+
+        article.setBodyId(articleBody.getId());
+        articleMapper.updateById(article);
+        ArticleVo articleVo = new ArticleVo();
+        articleVo.setId(article.getId());
         return Result.success(articleVo);
     }
 
